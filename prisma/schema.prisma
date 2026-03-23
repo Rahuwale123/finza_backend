@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  phoneNumber  String?       @unique
+  email        String?       @unique
+  password     String?
+  name         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  bankAccounts BankAccount[]
+  transactions Transaction[]
+  aiMessages   AiMessage[]
+  
+  subscriptionType   SubscriptionType @default(FREE)
+  subscriptionExpiry DateTime?
+}
+
+enum SubscriptionType {
+  FREE
+  MONTHLY
+  YEARLY
+}
+
+model Otp {
+  id         String   @id @default(uuid())
+  identifier String   // Can be phoneNumber or email
+  type       String   // "phone" or "email"
+  code       String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+model BankAccount {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  accountName   String
+  accountNumber String
+  bankName      String
+  balance       Float         @default(0.0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  transactions  Transaction[]
+}
+
+model Transaction {
+  id            String       @id @default(uuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id])
+  bankAccountId String?
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  title         String
+  amount        Float
+  category      String
+  date          DateTime     @default(now())
+  isExpense     Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+model AiMessage {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  isUser    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
