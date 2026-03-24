@@ -3,7 +3,7 @@ const prisma = require('../../config/db');
 exports.getSubscriptionStatus = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: req.user.id },
       select: {
         subscriptionType: true,
         subscriptionExpiry: true
@@ -27,21 +27,19 @@ exports.getSubscriptionStatus = async (req, res) => {
 
 exports.upgradeSubscription = async (req, res) => {
   try {
-    const { type } = req.body; // 'MONTHLY' or 'YEARLY'
-    if (!['MONTHLY', 'YEARLY', 'FREE'].includes(type)) {
-      return res.status(400).json({ message: 'Invalid subscription type' });
+    const { type } = req.body; // Only 'MONTHLY' is supported now
+    if (type !== 'MONTHLY' && type !== 'FREE') {
+      return res.status(400).json({ message: 'Only monthly plan is available' });
     }
 
     let expiryDate = null;
-    const now = new Date();
     if (type === 'MONTHLY') {
+      const now = new Date();
       expiryDate = new Date(now.setMonth(now.getMonth() + 1));
-    } else if (type === 'YEARLY') {
-      expiryDate = new Date(now.setFullYear(now.getFullYear() + 1));
     }
 
     const user = await prisma.user.update({
-      where: { id: req.user.userId },
+      where: { id: req.user.id },
       data: {
         subscriptionType: type,
         subscriptionExpiry: expiryDate
@@ -49,7 +47,7 @@ exports.upgradeSubscription = async (req, res) => {
     });
 
     res.status(200).json({
-      message: `Successfully upgraded to ${type} plan!`,
+      message: type === 'FREE' ? 'Subscription cancelled' : 'Successfully upgraded to Monthly plan!',
       subscriptionType: user.subscriptionType,
       subscriptionExpiry: user.subscriptionExpiry
     });
@@ -60,36 +58,31 @@ exports.upgradeSubscription = async (req, res) => {
 
 exports.verifyPurchase = async (req, res) => {
   try {
-    const { purchaseToken, productId, type } = req.body;
+    const { purchaseToken, productId } = req.body;
+    console.log(`[SUBSCRIPTION] Verification request: Product=${productId}, Token=${purchaseToken.substring(0, 15)}...`);
     
-    // NOTE: In a real app, you would verify this token with Google Play Developer API
-    // const googlePlay = new GooglePlayDeveloperApi(...);
-    // const isValid = await googlePlay.verify(purchaseToken);
-    
-    // For demo/dev, we'll assume it's valid if token is provided
     if (!purchaseToken) {
+      console.log('[SUBSCRIPTION] FAILED: Missing token');
       return res.status(400).json({ message: 'Purchase token is required' });
     }
 
-    let expiryDate = null;
+    console.log(`[SUBSCRIPTION] Upgrading user ${req.user.id} to MONTHLY...`);
+
+    // Default all purchases to MONTHLY for now
     const now = new Date();
-    if (type === 'MONTHLY' || productId.toLowerCase().includes('monthly')) {
-      expiryDate = new Date(now.setMonth(now.getMonth() + 1));
-    } else if (type === 'YEARLY' || productId.toLowerCase().includes('yearly')) {
-      expiryDate = new Date(now.setFullYear(now.getFullYear() + 1));
-    }
+    const expiryDate = new Date(now.setMonth(now.getMonth() + 1));
 
     const user = await prisma.user.update({
-      where: { id: req.user.userId },
+      where: { id: req.user.id },
       data: {
-        subscriptionType: type || (productId.toLowerCase().includes('yearly') ? 'YEARLY' : 'MONTHLY'),
+        subscriptionType: 'MONTHLY',
         subscriptionExpiry: expiryDate
       }
     });
 
     res.status(200).json({
       success: true,
-      message: 'Purchase verified successfully!',
+      message: 'Monthly subscription activated!',
       subscriptionType: user.subscriptionType,
       subscriptionExpiry: user.subscriptionExpiry
     });
@@ -97,3 +90,4 @@ exports.verifyPurchase = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
