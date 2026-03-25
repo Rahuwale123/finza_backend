@@ -5,6 +5,19 @@ exports.createTransaction = async (req, res) => {
   try {
     const { title, amount, category, isExpense, date, bankAccountId } = req.body;
     const userId = req.user.id;
+
+    if (!bankAccountId) {
+      return res.status(400).json({ message: 'A bank account is required for transactions. Please add a bank account first.' });
+    }
+
+    // Verify bank account exists and belongs to user
+    const bankAccount = await prisma.bankAccount.findUnique({
+      where: { id: bankAccountId }
+    });
+
+    if (!bankAccount || bankAccount.userId !== userId) {
+      return res.status(403).json({ message: 'Invalid bank account or access denied.' });
+    }
     
     // Check usage limit for FREE tier
     const canAdd = await UsageService.canAddTransaction(userId);
@@ -22,7 +35,7 @@ exports.createTransaction = async (req, res) => {
           isExpense,
           date: date ? new Date(date) : new Date(),
           userId,
-          bankAccountId: bankAccountId || null
+          bankAccountId
         }
       });
 
