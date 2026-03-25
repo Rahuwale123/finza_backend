@@ -96,26 +96,26 @@ exports.getDashboardSummary = async (req, res) => {
   try {
     const userId = req.user.id;
     
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { 
-        name: true,
-        subscriptionType: true,
-        subscriptionExpiry: true
-      }
-    });
+    const [user, transactions, bankAccounts] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { 
+          name: true,
+          subscriptionType: true,
+          subscriptionExpiry: true
+        }
+      }),
+      prisma.transaction.findMany({
+        where: { userId },
+        orderBy: { date: 'desc' }
+      }),
+      prisma.bankAccount.findMany({
+        where: { userId }
+      })
+    ]);
 
     const isPremium = user?.subscriptionType !== 'FREE' && 
                      (!user?.subscriptionExpiry || user?.subscriptionExpiry > new Date());
-
-    const transactions = await prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { date: 'desc' }
-    });
-
-    const bankAccounts = await prisma.bankAccount.findMany({
-      where: { userId }
-    });
 
     const totalBalance = bankAccounts.reduce((sum, b) => sum + b.balance, 0);
     const totalSpent = transactions.filter(t => t.isExpense).reduce((sum, t) => sum + t.amount, 0);
