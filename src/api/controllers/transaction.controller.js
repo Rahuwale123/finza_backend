@@ -48,12 +48,32 @@ exports.createTransaction = async (req, res) => {
 
 exports.getTransactions = async (req, res) => {
   try {
-    const transactions = await prisma.transaction.findMany({
-      where: { userId: req.user.id },
-      orderBy: { date: 'desc' }
-    });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    res.status(200).json(transactions);
+    const [transactions, totalCount] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { userId: req.user.id },
+        orderBy: { date: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.transaction.count({
+        where: { userId: req.user.id }
+      })
+    ]);
+
+    res.status(200).json({
+      transactions,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        hasNextPage: skip + transactions.length < totalCount
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
