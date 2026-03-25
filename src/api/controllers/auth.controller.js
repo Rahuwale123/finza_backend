@@ -11,6 +11,7 @@ exports.registerPhone = async (req, res) => {
 
     // Check if user exists
     let user = await prisma.user.findUnique({ where: { phoneNumber } });
+    console.log(`[AUTH] Checking registration for ${phoneNumber}: ${user ? 'Existing User' : 'New User'}`);
 
     if (user) {
       // Login flow: check password
@@ -42,17 +43,9 @@ exports.registerPhone = async (req, res) => {
 
     console.log(`[AUTH] OTP for ${phoneNumber}: ${otpCode}`);
 
-    // Generate token (returning it early as requested)
-    const token = jwt.sign(
-      { userId: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
     res.status(200).json({
       message: user ? 'Returning user. OTP sent.' : 'New user. OTP sent.',
       phoneNumber,
-      token,
       otpCode: process.env.NODE_ENV === 'development' ? otpCode : undefined
     });
   } catch (error) {
