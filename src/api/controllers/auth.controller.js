@@ -9,15 +9,22 @@ exports.registerPhone = async (req, res) => {
       return res.status(400).json({ message: 'Phone number and password are required' });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Check if user exists
+    let user = await prisma.user.findUnique({ where: { phoneNumber } });
 
-    // Find or Create User
-    const user = await prisma.user.upsert({
-      where: { phoneNumber },
-      update: { password: hashedPassword },
-      create: { phoneNumber, password: hashedPassword }
-    });
+    if (user) {
+      // Login flow: check password
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
+    } else {
+      // Signup flow: create user
+      const hashedPassword = await bcrypt.hash(password, 10);
+      user = await prisma.user.create({
+        data: { phoneNumber, password: hashedPassword }
+      });
+    }
 
     // Generate OTP
     const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
@@ -33,11 +40,19 @@ exports.registerPhone = async (req, res) => {
       }
     });
 
-    console.log(`[AUTH] REGISTRATION OTP for ${phoneNumber}: ${otpCode}`);
+    console.log(`[AUTH] OTP for ${phoneNumber}: ${otpCode}`);
+
+    // Generate token (returning it early as requested)
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.status(200).json({
-      message: 'Registration initiated. OTP sent to phone.',
+      message: user ? 'Returning user. OTP sent.' : 'New user. OTP sent.',
       phoneNumber,
+      token,
       otpCode: process.env.NODE_ENV === 'development' ? otpCode : undefined
     });
   } catch (error) {
@@ -143,6 +158,16 @@ exports.verifyOtp = async (req, res) => {
       message: 'Authentication successful',
       token,
       user
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getMe = async (req, res) => {
+  try {
+    res.status(200).json({
+      user: req.user
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
