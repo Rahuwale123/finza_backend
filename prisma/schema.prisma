@@ -21,6 +21,7 @@ model User {
   bankAccounts BankAccount[]
   transactions Transaction[]
   aiMessages   AiMessage[]
+  goals        Goal[]
   
   subscriptionType   SubscriptionType @default(FREE)
   subscriptionExpiry DateTime?
@@ -62,6 +63,8 @@ model Transaction {
   user          User         @relation(fields: [userId], references: [id])
   bankAccountId String?
   bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  goalId        String?
+  goal          Goal?        @relation(fields: [goalId], references: [id])
   title         String
   amount        Float
   category      String
@@ -72,6 +75,7 @@ model Transaction {
 
   @@index([userId])
   @@index([bankAccountId])
+  @@index([goalId])
   @@index([date])
 }
 
@@ -82,6 +86,23 @@ model AiMessage {
   content   String
   isUser    Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Goal {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  title         String
+  targetAmount  Float
+  currentAmount Float    @default(0.0)
+  category      String?
+  color         String?
+  icon          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  transactions  Transaction[]
 
   @@index([userId])
 }

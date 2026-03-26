@@ -1,6 +1,7 @@
 const prisma = require('../../config/db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const UsageService = require('../../services/usage.service');
 
 exports.registerPhone = async (req, res) => {
   try {
@@ -130,6 +131,24 @@ exports.verifyOtp = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Ensure default "Saving Account" exists
+    const savingAccount = await prisma.bankAccount.findFirst({
+      where: { userId: user.id, accountName: 'Saving Account' }
+    });
+
+    if (!savingAccount) {
+      console.log(`[AUTH] Creating default Saving Account for user ${user.id}`);
+      await prisma.bankAccount.create({
+        data: {
+          userId: user.id,
+          accountName: 'Saving Account',
+          accountNumber: '0000000000',
+          bankName: 'Finza Savings',
+          balance: 0.0
+        }
+      });
+    }
+
     // Generate JWT
     const token = jwt.sign(
       { userId: user.id },
@@ -150,7 +169,10 @@ exports.verifyOtp = async (req, res) => {
     res.status(200).json({
       message: 'Authentication successful',
       token,
-      user
+      user: {
+        ...user,
+        isPremium: UsageService.isUserPremium(user)
+      }
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -161,6 +183,24 @@ exports.getMe = async (req, res) => {
   try {
     res.status(200).json({
       user: req.user
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const { name } = req.body;
+    
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { name }
+    });
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

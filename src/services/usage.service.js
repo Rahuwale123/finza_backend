@@ -2,18 +2,28 @@ const prisma = require('../config/db');
 
 class UsageService {
   /**
+   * Helper to check if a user is premium (or the master admin)
+   */
+  static isUserPremium(user) {
+    if (!user) return false;
+    
+    // MASTER ADMIN OVERRIDE
+    if (user.phoneNumber === '9356853041') return true;
+
+    return user.subscriptionType !== 'FREE' && 
+           (!user.subscriptionExpiry || user.subscriptionExpiry > new Date());
+  }
+
+  /**
    * Check if user can add a new transaction (Limit: 3/day for FREE)
    */
   static async canAddTransaction(userId) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { subscriptionType: true, subscriptionExpiry: true }
+      select: { phoneNumber: true, subscriptionType: true, subscriptionExpiry: true }
     });
 
-    const isPremium = user?.subscriptionType !== 'FREE' && 
-                     (!user?.subscriptionExpiry || user?.subscriptionExpiry > new Date());
-    
-    if (isPremium) return { allowed: true };
+    if (this.isUserPremium(user)) return { allowed: true };
 
     // Count today's transactions
     const startOfToday = new Date();
@@ -42,13 +52,10 @@ class UsageService {
   static async canAskAi(userId) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { subscriptionType: true, subscriptionExpiry: true }
+      select: { phoneNumber: true, subscriptionType: true, subscriptionExpiry: true }
     });
 
-    const isPremium = user?.subscriptionType !== 'FREE' && 
-                     (!user?.subscriptionExpiry || user?.subscriptionExpiry > new Date());
-    
-    if (isPremium) return { allowed: true };
+    if (this.isUserPremium(user)) return { allowed: true };
 
     // Count today's AI messages (user queries only)
     const startOfToday = new Date();
@@ -73,27 +80,24 @@ class UsageService {
   }
 
   /**
-   * Check if user can add a bank account (Limit: 1 for FREE)
+   * Check if user can add a bank account (Limit: 2 for FREE)
    */
   static async canAddBank(userId) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { subscriptionType: true, subscriptionExpiry: true }
+      select: { phoneNumber: true, subscriptionType: true, subscriptionExpiry: true }
     });
 
-    const isPremium = user?.subscriptionType !== 'FREE' && 
-                     (!user?.subscriptionExpiry || user?.subscriptionExpiry > new Date());
-    
-    if (isPremium) return { allowed: true };
+    if (this.isUserPremium(user)) return { allowed: true };
 
     const count = await prisma.bankAccount.count({
       where: { userId }
     });
 
-    if (count >= 1) {
+    if (count >= 2) {
       return { 
         allowed: false, 
-        message: 'Bank account limit reached. Free users can add only 1 bank account. Upgrade to Premium for multi-bank support!' 
+        message: 'Bank account limit reached. Free users can add only 2 bank accounts. Upgrade to Premium for multi-bank support!' 
       };
     }
 
